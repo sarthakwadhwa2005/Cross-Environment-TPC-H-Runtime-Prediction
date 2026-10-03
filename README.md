@@ -218,6 +218,10 @@ These are documented in the analysis reports under `results/`.
 
 Independent project focused on query-performance prediction, SLA risk estimation, and deployment gating for cross-machine SQL performance.
 
+## License
+
+License: MIT
+
 ## Notes
 
 The repository also includes a `RUNNING.md` file with step-by-step commands for running demos and validation flows. For the most complete technical discussion of methodology and evaluation, see the reports in `results/`.
