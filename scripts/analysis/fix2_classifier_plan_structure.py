@@ -7,7 +7,7 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingRegressor
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.metrics import precision_recall_fscore_support, confusion_matrix, f1_score
 
-PROJECT_DIR = Path(r"C:\Users\sarth\Downloads\Cross-Environment-TPC-H-Runtime-Prediction-master\Cross-Environment-TPC-H-Runtime-Prediction-master")
+PROJECT_DIR = Path(__file__).resolve().parents[2]
 CSV_PATH = PROJECT_DIR / "data" / "corrected" / "tpch_dataset_corrected_v2.csv"
 PLAN_FEATURES_CSV = PROJECT_DIR / "results" / "plan_structure_features.csv"
 MODELS_DIR = PROJECT_DIR / "models"

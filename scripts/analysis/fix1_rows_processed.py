@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-PROJECT_DIR = Path(r"C:\Users\sarth\Downloads\Cross-Environment-TPC-H-Runtime-Prediction-master\Cross-Environment-TPC-H-Runtime-Prediction-master")
+PROJECT_DIR = Path(__file__).resolve().parents[2]
 BASE_CSV = PROJECT_DIR / "data" / "corrected" / "tpch_dataset_corrected.csv"
 PLAN_FEATURES_CSV = PROJECT_DIR / "results" / "plan_structure_features.csv"
 OUT_CSV = PROJECT_DIR / "data" / "corrected" / "tpch_dataset_corrected_v2.csv"

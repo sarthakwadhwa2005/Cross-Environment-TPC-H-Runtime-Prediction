@@ -4,8 +4,8 @@ import joblib
 from pathlib import Path
 from sklearn.ensemble import GradientBoostingRegressor
 
-PROJECT_DIR = Path(r"C:\Users\sarth\Downloads\Cross-Environment-TPC-H-Runtime-Prediction-master\Cross-Environment-TPC-H-Runtime-Prediction-master")
-CSV_PATH = PROJECT_DIR / "data" / "raw" / "tpch_dataset.csv"
+PROJECT_DIR = Path(__file__).resolve().parents[2]
+CSV_PATH = PROJECT_DIR / "data" / "corrected" / "tpch_dataset_corrected_v2.csv"
 MODELS_DIR = PROJECT_DIR / "models"
 RESULTS_DIR = PROJECT_DIR / "results"
 RESULTS_DIR.mkdir(exist_ok=True)

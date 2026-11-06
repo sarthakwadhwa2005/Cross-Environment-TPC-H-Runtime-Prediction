@@ -5,8 +5,7 @@ import time
 from pathlib import Path
 
 DB_NAME = sys.argv[1] if len(sys.argv) > 1 else "tpch"
-PROJECT_DIR = Path(r"C:\Users\sarth\Downloads\Cross-Environment-TPC-H-Runtime-Prediction-master\Cross-Environment-TPC-H-Runtime-Prediction-master")
-QUERY_DIR = Path(sys.argv[2]) if len(sys.argv) > 2 else PROJECT_DIR / "scripts" / "collection" / "patched_queries"
+QUERY_DIR = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(__file__).resolve().parent / "queries"
 OUT_DIR = Path(sys.argv[3]) if len(sys.argv) > 3 else Path("/tmp/collected")
 REPEATS = int(sys.argv[4]) if len(sys.argv) > 4 else 20
 TIMEOUT = int(sys.argv[5]) if len(sys.argv) > 5 else 600

@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 from scipy import stats
 
-PROJECT_DIR = Path(r"C:\Users\sarth\Downloads\Cross-Environment-TPC-H-Runtime-Prediction-master\Cross-Environment-TPC-H-Runtime-Prediction-master")
+PROJECT_DIR = Path(__file__).resolve().parents[2]
 RESULTS_DIR = PROJECT_DIR / "results"
 
 timing = pd.read_csv(RESULTS_DIR / "fix3_parallel_timing.csv")

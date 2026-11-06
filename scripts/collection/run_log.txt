@@ -118,4 +118,4 @@ PLAUSIBILITY CHECK PASSED: gflops_per_thread within [0.3, 300] GFLOPS.
 Terminating i-00a5cb8c9e401a9ee
 === Done with c7i ===
 
-All 5 machines measured and terminated. Results in the repository benchmark/results directory
+All 5 machines measured and terminated. Results are in the benchmark results directory.

@@ -3,11 +3,10 @@ set -euo pipefail
 
 AMI_ID="ami-094f1b962b34950d5"
 KEY_NAME="cloud"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="C:/Users/sarth/Downloads/Cross-Environment-TPC-H-Runtime-Prediction-master/Cross-Environment-TPC-H-Runtime-Prediction-master"
-KEY_PATH="${KEY_PATH:-$HOME/.ssh/cloud.pem}"
-PROBE_SRC="$PROJECT_DIR/scripts/collection/compute_probe.c"
-OUT_DIR="$PROJECT_DIR/scripts/collection/results"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+KEY_PATH="${KEY_PATH:?Set KEY_PATH to the SSH private-key path before running this benchmark}"
+PROBE_SRC="${PROBE_SRC:-$PROJECT_DIR/scripts/collection/compute_probe.c}"
+OUT_DIR="${OUT_DIR:-$PROJECT_DIR/scripts/collection/results}"
 mkdir -p "$OUT_DIR"
 
 MACHINE_KEYS=(c5a m5a r5n z1d c7i)
@@ -60,15 +59,44 @@ for idx in 0 1 2 3 4; do
 
   scp $ssh_opts "$PROBE_SRC" "ubuntu@${public_ip}:/tmp/compute_probe.c"
 
-  real_instance_type=$(ssh $ssh_opts "ubuntu@${public_ip}" \
-    "curl -s http://169.254.169.254/latest/meta-data/instance-type")
+  # IMDSv2. The original code issued a plain IMDSv1 GET, which this AMI's instances
+  # refuse (token required), so it returned EMPTY on all five machines and instance
+  # identity was never actually confirmed -- it was inferred from `nproc` matching the
+  # expected vCPU count. That inference does not scale: at 30 machines several instance
+  # types share a vCPU count, so nproc cannot identify them. Fetch a token, then use it.
+  imds_cmd='TOKEN=$(curl -sX PUT "http://169.254.169.254/latest/api/token" \
+      -H "X-aws-ec2-metadata-token-ttl-seconds: 300") && \
+    curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+      http://169.254.169.254/latest/meta-data/instance-type'
+  real_instance_type=$(ssh $ssh_opts "ubuntu@${public_ip}" "$imds_cmd")
+  real_instance_id=$(ssh $ssh_opts "ubuntu@${public_ip}" \
+    "${imds_cmd/instance-type/instance-id}")
   nproc_count=$(ssh $ssh_opts "ubuntu@${public_ip}" "nproc")
 
-  echo "Confirmed instance type: $real_instance_type, nproc: $nproc_count"
+  if [ -z "$real_instance_type" ]; then
+    echo "FATAL: IMDS returned no instance type for $machine_key. Refusing to record a" >&2
+    echo "measurement that cannot be attributed to a confirmed instance." >&2
+    exit 1
+  fi
+  if [ "$real_instance_type" != "$itype" ]; then
+    echo "FATAL: requested $itype but IMDS reports $real_instance_type" >&2
+    exit 1
+  fi
 
+  echo "Confirmed instance type: $real_instance_type (id $real_instance_id), nproc: $nproc_count"
+
+  # Tier 1 item 27 established that probing at `nproc` is a definition bug: a PostgreSQL
+  # query can only use 1 + max_parallel_workers_per_gather processes, so on a machine with
+  # more cores than that the aggregate figure describes capacity no query can reach. It was
+  # invisible at 2-4 vCPUs and catastrophic at 8 (324% vs 153% MAPE). Probe at BOTH the
+  # achievable DOP and nproc, and record which is which.
+  pg_dop=$(ssh $ssh_opts "ubuntu@${public_ip}" \
+    "psql -tAc 'show max_parallel_workers_per_gather' 2>/dev/null || echo 2")
+  dop_threads=$(( pg_dop + 1 ))
   remote_cmd="cd /tmp && gcc -O3 -march=native -o compute_probe compute_probe.c -lpthread && \
     echo '--- single-threaded ---' && taskset -c 1 ./compute_probe 1 15 42 && \
-    echo '--- multi-threaded (nproc=${nproc_count}) ---' && ./compute_probe ${nproc_count} 15 42"
+    echo '--- dop-matched (threads=${dop_threads}) ---' && ./compute_probe ${dop_threads} 15 42 && \
+    echo '--- nproc (threads=${nproc_count}) ---' && ./compute_probe ${nproc_count} 15 42"
 
   output_file="${OUT_DIR}/${machine_key}_compute_benchmark.txt"
   ssh $ssh_opts "ubuntu@${public_ip}" "$remote_cmd" | tee "$output_file"

@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import psycopg2
 
-PROJECT_DIR = Path(r"C:\Users\sarth\Downloads\Cross-Environment-TPC-H-Runtime-Prediction-master\Cross-Environment-TPC-H-Runtime-Prediction-master")
-QUERY_DIR = PROJECT_DIR / "scripts" / "collection" / "patched_queries"
+PROJECT_DIR = Path(__file__).resolve().parents[2]
+QUERY_DIR = PROJECT_DIR / "scripts" / "collection" / "queries"
 RESULTS_DIR = PROJECT_DIR / "results"
 RESULTS_DIR.mkdir(exist_ok=True)
 

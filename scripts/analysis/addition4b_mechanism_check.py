@@ -3,8 +3,7 @@ import pandas as pd
 from pathlib import Path
 import addition4_reevaluate as a4
 
-PROJECT_DIR = Path(r"C:\Users\sarth\Downloads\Cross-Environment-TPC-H-Runtime-Prediction-master\Cross-Environment-TPC-H-Runtime-Prediction-master")
-RESULTS_DIR = PROJECT_DIR / "results"
+RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
 
 VCPU_COUNT = {"c5a": 4, "m5a": 4, "r5n": 2, "z1d": 2, "c7i": 2}
 

@@ -7,7 +7,7 @@ import joblib
 import numpy as np
 import yaml
 
-PROJECT_DIR = Path(__file__).resolve().parents[1]
+PROJECT_DIR = Path(__file__).resolve().parent.parent
 MODELS_DIR = PROJECT_DIR / "models"
 RESULTS_DIR = PROJECT_DIR / "results"
 
@@ -16,7 +16,38 @@ DEFAULT_CONFIDENCE_THRESHOLD = 0.6
 RAW_BOTTLENECK_COLS = ["cost", "shared_hit", "shared_read", "total_buffers", "io_ratio", "rows"]
 
 
+def _warn_stale_artifacts():
+    """Surface any remaining caveat on the shipped artifacts.
+
+    The three-way staleness this used to warn about (buffer-bug training data, a
+    scikit-learn version mismatch, and the single-core compute signal) was resolved on
+    2026-10-13. What remains is the DOP caveat: the compute axis is probed at `nproc`, but a
+    query can only use 1 + max_parallel_workers_per_gather processes. Full detail in
+    models/MODEL_CARD.md.
+    """
+    provenance = MODELS_DIR / "PROVENANCE.json"
+    if not provenance.exists():
+        return
+    try:
+        meta = json.loads(provenance.read_text())
+    except (ValueError, OSError):
+        return
+    if str(meta.get("status", "")).startswith("STALE"):
+        print(f"WARNING: {MODELS_DIR.name}/ artifacts are stale. "
+              f"See models/MODEL_CARD.md. Current results: results/CANONICAL.md",
+              file=sys.stderr)
+        return
+    caveat = (meta.get("artifacts", {}).get("hardware_signature.pkl", {})
+              .get("remaining_caveat"))
+    if caveat:
+        print(f"NOTE: compute scores are probed at nproc, not at the achievable DOP "
+              f"(c5a/m5a overstate usable capacity). Probe new machines with "
+              f"scripts/collection/hw_signature.py. See models/MODEL_CARD.md.",
+              file=sys.stderr)
+
+
 def load_models():
+    _warn_stale_artifacts()
     bottleneck_model = joblib.load(MODELS_DIR / "bottleneck_classifier.pkl")
     quantile_models = joblib.load(MODELS_DIR / "scaling_quantile_models.pkl")
     hardware_signature = joblib.load(MODELS_DIR / "hardware_signature.pkl")
@@ -224,21 +255,12 @@ def resolve_signature(config, key, cli_bandwidth, cli_compute):
     return {"bandwidth": float(hw["bandwidth_gbs"]), "compute": float(hw["compute_score"])}
 
 
-def resolve_machine_signature(machine_id, hardware_signature_table):
-    if machine_id not in hardware_signature_table:
-        available = ", ".join(sorted(hardware_signature_table))
-        raise ValueError(f"unknown machine '{machine_id}'; choose one of: {available}")
-    return hardware_signature_table[machine_id]
-
-
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="CETP CI/CD SLA gate")
     parser.add_argument("--query-id", default=None)
     parser.add_argument("--dev-features")
     parser.add_argument("--explain-json")
     parser.add_argument("--config")
-    parser.add_argument("--dev-machine", help="named development machine from the trained hardware table")
-    parser.add_argument("--prod-machine", help="named production machine from the trained hardware table")
     parser.add_argument("--dev-bandwidth", type=float, default=None)
     parser.add_argument("--dev-compute", type=float, default=None)
     parser.add_argument("--prod-bandwidth", type=float, default=None)
@@ -263,37 +285,13 @@ def main(argv=None):
         return 2
 
     config = load_config(args.config) if args.config else None
-    hardware_signature_table = None
-    if args.dev_machine or args.prod_machine:
-        hardware_signature_table = load_models()[2]
-        if not args.dev_machine or not args.prod_machine:
-            print("error: --dev-machine and --prod-machine must be provided together", file=sys.stderr)
-            return 2
 
     if args.explain_json:
         raw_features = features_from_explain_json(args.explain_json)
     else:
         raw_features = features_from_json(args.dev_features)
 
-    if args.dev_machine:
-        try:
-            dev_signature = resolve_machine_signature(args.dev_machine, hardware_signature_table)
-            prod_signature = resolve_machine_signature(args.prod_machine, hardware_signature_table)
-        except ValueError as exc:
-            print(f"error: {exc}", file=sys.stderr)
-            return 2
-        if config is not None:
-            sla_ms = resolve_sla_ms(config, args.query_id, args.sla_ms)
-            confidence_threshold = args.confidence_threshold
-            if confidence_threshold is None:
-                confidence_threshold = float(config.get("confidence", {}).get("low_confidence_threshold", DEFAULT_CONFIDENCE_THRESHOLD))
-        else:
-            if args.sla_ms is None:
-                print("error: --sla-ms is required when --config is not provided", file=sys.stderr)
-                return 2
-            sla_ms = args.sla_ms
-            confidence_threshold = args.confidence_threshold if args.confidence_threshold is not None else DEFAULT_CONFIDENCE_THRESHOLD
-    elif config is not None:
+    if config is not None:
         dev_signature = resolve_signature(config, "dev_hardware", args.dev_bandwidth, args.dev_compute)
         prod_signature = resolve_signature(config, "prod_hardware", args.prod_bandwidth, args.prod_compute)
         sla_ms = resolve_sla_ms(config, args.query_id, args.sla_ms)
